@@ -204,6 +204,7 @@ extract-here = Extract
 new-file = New file...
 new-folder = New folder...
 open-in-terminal = Open in terminal
+open-in-vscode = Open in VS Code
 move-to-trash = Move to trash
 restore-from-trash = Restore from trash
 remove-from-sidebar = Remove from sidebar

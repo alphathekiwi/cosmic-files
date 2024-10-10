@@ -119,6 +119,8 @@ pub fn context_menu<'a>(
                     if selected_dir == 1 {
                         children
                             .push(menu_item(fl!("open-in-terminal"), Action::OpenTerminal).into());
+                        children
+                            .push(menu_item(fl!("open-in-vscode"), Action::OpenInCode).into());
                     }
                 }
                 if matches!(tab.location, Location::Search(..)) {
@@ -176,6 +178,7 @@ pub fn context_menu<'a>(
                 children.push(menu_item(fl!("new-folder"), Action::NewFolder).into());
                 children.push(menu_item(fl!("new-file"), Action::NewFile).into());
                 children.push(menu_item(fl!("open-in-terminal"), Action::OpenTerminal).into());
+                children.push(menu_item(fl!("open-in-vscode"), Action::OpenInCode).into());
                 children.push(divider::horizontal::light().into());
                 if tab.mode.multiple() {
                     children.push(menu_item(fl!("select-all"), Action::SelectAll).into());

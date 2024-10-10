@@ -112,6 +112,7 @@ pub enum Action {
     OpenInNewTab,
     OpenInNewWindow,
     OpenItemLocation,
+    OpenInCode,
     OpenTerminal,
     OpenWith,
     Paste,
@@ -171,6 +172,7 @@ impl Action {
             Action::OpenInNewTab => Message::OpenInNewTab(entity_opt),
             Action::OpenInNewWindow => Message::OpenInNewWindow(entity_opt),
             Action::OpenItemLocation => Message::OpenItemLocation(entity_opt),
+            Action::OpenInCode => Message::OpenInCode(entity_opt),
             Action::OpenTerminal => Message::OpenTerminal(entity_opt),
             Action::OpenWith => Message::OpenWithDialog(entity_opt),
             Action::Paste => Message::Paste(entity_opt),
@@ -286,6 +288,7 @@ pub enum Message {
     Notification(Arc<Mutex<notify_rust::NotificationHandle>>),
     NotifyEvents(Vec<DebouncedEvent>),
     NotifyWatcher(WatcherWrapper),
+    OpenInCode(Option<Entity>),
     OpenTerminal(Option<Entity>),
     OpenInNewTab(Option<Entity>),
     OpenInNewWindow(Option<Entity>),
@@ -1976,6 +1979,40 @@ impl Application for App {
                     log::warn!("message did not contain notify watcher");
                 }
             },
+            Message::OpenInCode(entity_opt) => {
+                let mut paths = Vec::new();
+                let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
+                if let Some(tab) = self.tab_model.data_mut::<Tab>(entity) {
+                    if let Location::Path(path) = &tab.location {
+                        if let Some(items) = tab.items_opt() {
+                            for item in items.iter() {
+                                if item.selected {
+                                    if let Some(Location::Path(path)) = &item.location_opt {
+                                        paths.push(path.clone());
+                                    }
+                                }
+                            }
+                        }
+                        if paths.is_empty() {
+                            paths.push(path.clone());
+                        }
+                    }
+                }
+                for path in paths {
+                    let mut command = std::process::Command::new("code");
+                    command.arg(&path);
+                    match spawn_detached(&mut command) {
+                        Ok(()) => {}
+                        Err(err) => {
+                            log::warn!(
+                                "failed to open {:?} with code: {}",
+                                path,
+                                err
+                            )
+                        }
+                    }
+                }
+            }
             Message::OpenTerminal(entity_opt) => {
                 if let Some(terminal) = mime_app::terminal() {
                     let mut paths = Vec::new();
