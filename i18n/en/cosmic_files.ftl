@@ -11,6 +11,15 @@ recents = Recents
 undo = Undo
 today = Today
 
+# Desktop view options
+desktop-view-options = Desktop view options...
+show-on-desktop = Show on Desktop
+desktop-folder-content = Desktop folder content
+mounted-drives = Mounted drives
+trash-folder-icon = Trash folder icon
+icon-size-and-spacing = Icon size and spacing
+icon-size = Icon size
+
 # List view
 name = Name
 modified = Modified
@@ -195,6 +204,7 @@ extract-here = Extract
 new-file = New file...
 new-folder = New folder...
 open-in-terminal = Open in terminal
+open-in-vscode = Open in VS Code
 move-to-trash = Move to trash
 restore-from-trash = Restore from trash
 remove-from-sidebar = Remove from sidebar

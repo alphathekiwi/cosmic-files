@@ -1,4 +1,5 @@
 use cosmic::{iced::subscription, widget, Command};
+use once_cell::sync::Lazy;
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 use tokio::sync::mpsc;
 
@@ -62,10 +63,10 @@ impl MounterItem {
         }
     }
 
-    pub fn icon(&self) -> Option<widget::icon::Handle> {
+    pub fn icon(&self, symbolic: bool) -> Option<widget::icon::Handle> {
         match self {
             #[cfg(feature = "gvfs")]
-            Self::Gvfs(item) => item.icon(),
+            Self::Gvfs(item) => item.icon(symbolic),
             Self::None => unreachable!(),
         }
     }
@@ -89,6 +90,7 @@ pub enum MounterMessage {
 }
 
 pub trait Mounter: Send + Sync {
+    fn items(&self, sizes: IconSizes) -> Option<MounterItems>;
     //TODO: send result
     fn mount(&self, item: MounterItem) -> Command<()>;
     fn network_drive(&self, uri: String) -> Command<()>;
@@ -113,3 +115,5 @@ pub fn mounters() -> Mounters {
 
     Mounters::new(mounters)
 }
+
+pub static MOUNTERS: Lazy<Mounters> = Lazy::new(|| mounters());

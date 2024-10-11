@@ -35,6 +35,18 @@ macro_rules! menu_button {
     );
 }
 
+fn menu_button_optional(
+    label: String,
+    action: Action,
+    enabled: bool,
+) -> menu::Item<Action, String> {
+    if enabled {
+        menu::Item::Button(label, action)
+    } else {
+        menu::Item::ButtonDisabled(label, action)
+    }
+}
+
 pub fn context_menu<'a>(
     tab: &Tab,
     key_binds: &HashMap<KeyBind, Action>,
@@ -58,12 +70,13 @@ pub fn context_menu<'a>(
         .on_press(tab::Message::ContextAction(action))
     };
 
+    let (sort_name, sort_direction, _) = tab.sort_options();
     let sort_item = |label, variant| {
         menu_item(
             format!(
                 "{} {}",
                 label,
-                match (tab.sort_name == variant, tab.sort_direction) {
+                match (sort_name == variant, sort_direction) {
                     (true, true) => "\u{2B07}",
                     (true, false) => "\u{2B06}",
                     _ => "",
@@ -95,7 +108,7 @@ pub fn context_menu<'a>(
     match (&tab.mode, &tab.location) {
         (
             tab::Mode::App | tab::Mode::Desktop,
-            Location::Path(_) | Location::Search(_, _) | Location::Recents,
+            Location::Desktop(..) | Location::Path(..) | Location::Search(..) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
@@ -106,9 +119,11 @@ pub fn context_menu<'a>(
                     if selected_dir == 1 {
                         children
                             .push(menu_item(fl!("open-in-terminal"), Action::OpenTerminal).into());
+                        children
+                            .push(menu_item(fl!("open-in-vscode"), Action::OpenInCode).into());
                     }
                 }
-                if matches!(tab.location, Location::Search(_, _)) {
+                if matches!(tab.location, Location::Search(..)) {
                     children.push(
                         menu_item(fl!("open-item-location"), Action::OpenItemLocation).into(),
                     );
@@ -163,6 +178,7 @@ pub fn context_menu<'a>(
                 children.push(menu_item(fl!("new-folder"), Action::NewFolder).into());
                 children.push(menu_item(fl!("new-file"), Action::NewFile).into());
                 children.push(menu_item(fl!("open-in-terminal"), Action::OpenTerminal).into());
+                children.push(menu_item(fl!("open-in-vscode"), Action::OpenInCode).into());
                 children.push(divider::horizontal::light().into());
                 if tab.mode.multiple() {
                     children.push(menu_item(fl!("select-all"), Action::SelectAll).into());
@@ -189,17 +205,23 @@ pub fn context_menu<'a>(
                 children.push(sort_item(fl!("sort-by-name"), HeadingOptions::Name));
                 children.push(sort_item(fl!("sort-by-modified"), HeadingOptions::Modified));
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
+                if matches!(tab.location, Location::Desktop(..)) {
+                    children.push(divider::horizontal::light().into());
+                    children.push(
+                        menu_item(fl!("desktop-view-options"), Action::DesktopViewOptions).into(),
+                    );
+                }
             }
         }
         (
             tab::Mode::Dialog(dialog_kind),
-            Location::Path(_) | Location::Search(_, _) | Location::Recents,
+            Location::Desktop(..) | Location::Path(..) | Location::Search(..) | Location::Recents,
         ) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
                     children.push(menu_item(fl!("open"), Action::Open).into());
                 }
-                if matches!(tab.location, Location::Search(_, _)) {
+                if matches!(tab.location, Location::Search(..)) {
                     children.push(
                         menu_item(fl!("open-item-location"), Action::OpenItemLocation).into(),
                     );
@@ -221,7 +243,7 @@ pub fn context_menu<'a>(
                 children.push(sort_item(fl!("sort-by-size"), HeadingOptions::Size));
             }
         }
-        (_, Location::Network(_, _)) => {
+        (_, Location::Network(..)) => {
             if selected > 0 {
                 if selected_dir == 1 && selected == 1 || selected_dir == 0 {
                     children.push(menu_item(fl!("open"), Action::Open).into());
@@ -284,15 +306,28 @@ pub fn context_menu<'a>(
 pub fn dialog_menu<'a>(
     tab: &Tab,
     key_binds: &HashMap<KeyBind, Action>,
+    show_details: bool,
 ) -> Element<'static, Message> {
+    let (sort_name, sort_direction, _) = tab.sort_options();
     let sort_item = |label, sort, dir| {
         menu::Item::CheckBox(
             label,
-            tab.sort_name == sort && tab.sort_direction == dir,
+            sort_name == sort && sort_direction == dir,
             Action::SetSort(sort, dir),
         )
     };
     let in_trash = tab.location == Location::Trash;
+
+    let mut selected_gallery = 0;
+    tab.items_opt().map(|items| {
+        for item in items.iter() {
+            if item.selected {
+                if item.can_gallery() {
+                    selected_gallery += 1;
+                }
+            }
+        }
+    });
 
     MenuBar::new(vec![
         menu::Tree::with_children(
@@ -300,6 +335,8 @@ pub fn dialog_menu<'a>(
                 tab::View::Grid => "view-grid-symbolic",
                 tab::View::List => "view-list-symbolic",
             }))
+            // This prevents the button from being shown as insensitive
+            .on_press(Message::None)
             .padding(8),
             menu::items(
                 key_binds,
@@ -318,11 +355,13 @@ pub fn dialog_menu<'a>(
             ),
         ),
         menu::Tree::with_children(
-            widget::button::icon(widget::icon::from_name(if tab.sort_direction {
+            widget::button::icon(widget::icon::from_name(if sort_direction {
                 "view-sort-ascending-symbolic"
             } else {
                 "view-sort-descending-symbolic"
             }))
+            // This prevents the button from being shown as insensitive
+            .on_press(Message::None)
             .padding(8),
             menu::items(
                 key_binds,
@@ -361,6 +400,38 @@ pub fn dialog_menu<'a>(
                 ],
             ),
         ),
+        menu::Tree::with_children(
+            widget::button::icon(widget::icon::from_name("view-more-symbolic"))
+                // This prevents the button from being shown as insensitive
+                .on_press(Message::None)
+                .padding(8),
+            menu::items(
+                key_binds,
+                vec![
+                    menu::Item::Button(fl!("zoom-in"), Action::ZoomIn),
+                    menu::Item::Button(fl!("default-size"), Action::ZoomDefault),
+                    menu::Item::Button(fl!("zoom-out"), Action::ZoomOut),
+                    menu::Item::Divider,
+                    menu::Item::CheckBox(
+                        fl!("show-hidden-files"),
+                        tab.config.show_hidden,
+                        Action::ToggleShowHidden,
+                    ),
+                    menu::Item::CheckBox(
+                        fl!("list-directories-first"),
+                        tab.config.folders_first,
+                        Action::ToggleFoldersFirst,
+                    ),
+                    menu::Item::CheckBox(fl!("show-details"), show_details, Action::Preview),
+                    menu::Item::Divider,
+                    menu_button_optional(
+                        fl!("gallery-preview"),
+                        Action::Gallery,
+                        selected_gallery > 0,
+                    ),
+                ],
+            ),
+        ),
     ])
     .item_height(ItemHeight::Dynamic(40))
     .item_width(ItemWidth::Uniform(240))
@@ -373,11 +444,12 @@ pub fn menu_bar<'a>(
     config: &Config,
     key_binds: &HashMap<KeyBind, Action>,
 ) -> Element<'a, Message> {
+    let sort_options = tab_opt.map(|tab| tab.sort_options());
     let sort_item = |label, sort, dir| {
         menu::Item::CheckBox(
             label,
-            tab_opt.map_or(false, |tab| {
-                tab.sort_name == sort && tab.sort_direction == dir
+            sort_options.map_or(false, |(sort_name, sort_direction, _)| {
+                sort_name == sort && sort_direction == dir
             }),
             Action::SetSort(sort, dir),
         )
@@ -386,6 +458,7 @@ pub fn menu_bar<'a>(
 
     let mut selected_dir = 0;
     let mut selected = 0;
+    let mut selected_gallery = 0;
     tab_opt.and_then(|tab| tab.items_opt()).map(|items| {
         for item in items.iter() {
             if item.selected {
@@ -393,21 +466,12 @@ pub fn menu_bar<'a>(
                 if item.metadata.is_dir() {
                     selected_dir += 1;
                 }
+                if item.can_gallery() {
+                    selected_gallery += 1;
+                }
             }
         }
     });
-
-    fn menu_button_optional(
-        label: String,
-        action: Action,
-        enabled: bool,
-    ) -> menu::Item<Action, String> {
-        if enabled {
-            menu::Item::Button(label, action)
-        } else {
-            menu::Item::ButtonDisabled(label, action)
-        }
-    }
 
     MenuBar::new(vec![
         menu::Tree::with_children(
@@ -483,7 +547,11 @@ pub fn menu_bar<'a>(
                     ),
                     menu::Item::CheckBox(fl!("show-details"), config.show_details, Action::Preview),
                     menu::Item::Divider,
-                    menu_button_optional(fl!("gallery-preview"), Action::Gallery, selected > 0),
+                    menu_button_optional(
+                        fl!("gallery-preview"),
+                        Action::Gallery,
+                        selected_gallery > 0,
+                    ),
                     menu::Item::Divider,
                     menu::Item::Button(fl!("menu-settings"), Action::Settings),
                     menu::Item::Divider,
