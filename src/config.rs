@@ -4,7 +4,7 @@ use std::{any::TypeId, num::NonZeroU16, path::PathBuf};
 
 use cosmic::{
     cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
-    iced::subscription::Subscription,
+    iced::Subscription,
     theme, Application,
 };
 use serde::{Deserialize, Serialize};
@@ -68,7 +68,7 @@ impl Favorite {
             Self::Videos,
         ] {
             if let Some(favorite_path) = favorite.path_opt() {
-                if &favorite_path == &path {
+                if favorite_path == path {
                     return favorite.clone();
                 }
             }

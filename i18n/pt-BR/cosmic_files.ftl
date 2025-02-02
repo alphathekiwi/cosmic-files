@@ -11,11 +11,28 @@ recents = Recentes
 undo = Desfazer
 today = Hoje
 
+# Desktop view options
+desktop-view-options = Opções de visualização do desktop...
+show-on-desktop = Mostrar no desktop
+desktop-folder-content = Conteúdo da pasta do desktop
+mounted-drives = Dispositivos montados
+trash-folder-icon = Ícone da lixeira
+icon-size-and-spacing = Tamanho e espaçamento do ícone
+icon-size = Tamanho do ícone
+
 # List view
 name = Nome
 modified = Modificação
 trashed-on = Exclusão
 size = Tamanho
+
+# Progress footer
+details = Detalhes
+dismiss = Dispensar mensagem
+operations-running = {$running} operações em andamento ({$percent}%)...
+operations-running-finished = {$running} operações em andamento ({$percent}%), {$finished} finalizadas...
+pause = Pausar
+resume = Continuar
 
 # Dialogs
 
@@ -25,6 +42,9 @@ create-archive = Compactar arquivos
 ## Empty Trash Dialog
 empty-trash = Esvaziar lixeira
 empty-trash-warning = Tem certeza de que deseja apagar permanentemente todos os itens da lixeira?
+
+## Mount Error Dialog
+mount-error = Não foi possível acessar o dispositivo
 
 ## New File/Folder Dialog
 create-new-file = Criar novo arquivo
@@ -114,12 +134,16 @@ try-again = Tente novamente
 username = Usuário
 
 ## Operations
+cancelled = Cancelado
 edit-history = Editar histórico
 history = Histórico
 no-history = Nenhum item no histórico.
 pending = Pendente
+progress = {$percent}%
+progress-cancelled = {$percent}%, cancelado
+progress-paused = {$percent}%, pausado
 failed = Com falha
-complete = Completo
+complete = Concluído
 compressing = Compactando {$items} {$items ->
         [one] item
         *[other] itens
@@ -172,11 +196,18 @@ restored = Restaurado {$items} {$items ->
 unknown-folder = pasta desconhecida
 
 ## Open with
-open-with = Abrir com...
+menu-open-with = Abrir com...
 default-app = {$name} (padrão)
 
 ## Show details
 show-details = Mostrar detalhes
+type = Tipo: {$mime}
+items = Itens: {$items}
+item-size = Tamanho: {$size}
+item-created = Criado: {$created}
+item-modified = Modificado: {$modified}
+item-accessed = Acessado: {$accessed}
+calculating = Calculando...
 
 ## Settings
 settings = Configurações

@@ -1,7 +1,7 @@
 use cosmic::{
-    app::{self, Command, Core, Settings},
+    app::{self, Core, Settings, Task},
     executor,
-    iced::{subscription::Subscription, window},
+    iced::{window, Subscription},
     widget, Application, Element,
 };
 use cosmic_files::dialog::{Dialog, DialogKind, DialogMessage, DialogResult};
@@ -42,18 +42,18 @@ impl Application for App {
         &mut self.core
     }
 
-    fn init(core: Core, _flags: Self::Flags) -> (Self, Command<Message>) {
+    fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Message>) {
         (
             Self {
                 core,
                 dialog_opt: None,
                 result_opt: None,
             },
-            Command::none(),
+            Task::none(),
         )
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::DialogMessage(dialog_message) => {
                 if let Some(dialog) = &mut self.dialog_opt {
@@ -78,18 +78,18 @@ impl Application for App {
             }
         }
 
-        Command::none()
+        Task::none()
     }
 
     fn view_window(&self, window_id: window::Id) -> Element<Message> {
         match &self.dialog_opt {
             Some(dialog) => dialog.view(window_id),
-            None => widget::text("No dialog").into(),
+            None => widget::text::body("No dialog").into(),
         }
     }
 
     fn view(&self) -> Element<Message> {
-        let mut column = widget::column().spacing(8);
+        let mut column = widget::column().spacing(8).padding(8);
         {
             let mut button = widget::button::standard("Open File");
             if self.dialog_opt.is_none() {
@@ -130,11 +130,11 @@ impl Application for App {
         if let Some(result) = &self.result_opt {
             match result {
                 DialogResult::Cancel => {
-                    column = column.push(widget::text("Cancel"));
+                    column = column.push(widget::text::body("Cancel"));
                 }
                 DialogResult::Open(paths) => {
                     for path in paths.iter() {
-                        column = column.push(widget::text(format!("{}", path.display())));
+                        column = column.push(widget::text::body(format!("{}", path.display())));
                     }
                 }
             }

@@ -3,7 +3,7 @@ empty-folder = Pusty katalog
 empty-folder-hidden = Pusty katalog (z ukrytymi plikami)
 no-results = Brak wyników
 filesystem = System plików
-home = Katalog Domowy
+home = Katalog domowy
 networks = Sieci
 notification-in-progress = Operacje na plikach w toku.
 trash = Kosz
@@ -12,7 +12,7 @@ undo = Cofnij
 today = Dzisiaj
 
 # Desktop view options
-desktop-view-options = Opcje widoku pulpitu...
+desktop-view-options = Opcje widoku pulpitu…
 show-on-desktop = Pokaż na Pulpicie
 desktop-folder-content = Zawartość katalogu Pulpit
 mounted-drives = Podpięte dyski
@@ -26,6 +26,14 @@ modified = Zmodyfikowano
 trashed-on = Wyrzucono do kosza
 size = Rozmiar
 
+# Progress footer
+details = Detale
+dismiss = Odrzuć wiadomość
+operations-running = {$running} bieżące działania ({$percent}%)…
+operations-running-finished = {$running} bieżące działania ({$percent}%), {$finished} ukończone…
+pause = Wstrzymaj
+resume = Wznów
+
 # Dialogs
 
 ## Compress Dialog
@@ -35,6 +43,9 @@ create-archive = Utwórz archiwum
 empty-trash = Opróżnij kosz
 empty-trash-warning = Czy chcesz bezpowrotnie usunąć zawartość Kosza?
 
+## Mount Error Dialog
+mount-error = Brak dostępu do dysku
+
 # New File/Folder Dialog
 create-new-file = Utwórz nowy plik
 create-new-folder = Utwórz nowy katalog
@@ -42,8 +53,8 @@ file-name = Nazwa pliku
 folder-name = Nazwa katalogu
 file-already-exists = Plik z taką nazwą już istnieje.
 folder-already-exists = Katalog z taką nazwą już istnieje.
-name-hidden = Nazwy zaczynające się na "." będą ukryte.
-name-invalid = Musisz zmienić nazwę na inną z "{$filename}".
+name-hidden = Nazwy zaczynające się od „.” będą ukryte.
+name-invalid = Musisz zmienić nazwę na inną z „{$filename}”.
 name-no-slashes = Nazwa nie może zawierać ukośników.
 
 # Open/Save Dialog
@@ -61,7 +72,7 @@ save = Zapisz
 save-file = Zapisz plik
 
 ## Open With Dialog
-open-with-title = Czym chcesz otworzyć "{$name}"?
+open-with-title = Czym chcesz otworzyć „{$name}”?
 browse-store = Przeglądaj {$store}
 
 # Rename Dialog
@@ -81,7 +92,7 @@ skip = Pomiń
 
 ## Set as Executable and Launch Dialog
 set-executable-and-launch = Ustaw jako wykonywalny i uruchom
-set-executable-and-launch-description = Czu chcesz ustawić "{$name}" jako wykonywalny i uruchomić?
+set-executable-and-launch-description = Czy chcesz ustawić plik „{$name}” jako wykonywalny i uruchomić go?
 set-and-launch = Ustaw i uruchom
 
 ## Metadata Dialog
@@ -101,7 +112,7 @@ git-description = Git commit {$hash} z {$date}
 add-network-drive = Dodaj dysk sieciowy
 connect = Połącz
 connect-anonymously = Połącz anonimowo
-connecting = Łączenie...
+connecting = Łączenie…
 domain = Domena
 enter-server-address = Wprowadź adres serwera
 network-drive-description =
@@ -123,60 +134,64 @@ try-again = Spróbuj ponownie
 username = Nazwa użytkownika
 
 ## Operations
+cancelled = Anulowano
 edit-history = Edytuj historię
 history = Historia
 no-history = Brak pozycji w historii.
 pending = Oczekujące
+progress = {$percent}%
+progress-cancelled = {$percent}%, anulowano
+progress-paused = {$percent}%, wstrzymano
 failed = Nieudane
 complete = Ukończone
 compressing = Spakuj {$items} {$items ->
         [one] element
         [few] elementy
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}” ({$progress})…
 compressed = Spakowano {$items} {$items ->
         [one] element
         [few] elementy
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}”
 copy_noun = Kopiuj
 creating = Tworzy {$name} w {$parent}
 created = Stworzono {$name} w {$parent}
 copying = Kopiowanie {$items} {$items ->
         [one] elementu
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}” ({$progress})…
 copied = Skopiowano {$items} {$items ->
         [one] element
         [few] elementy
         *[other] elementów
-    } z {$from} do {$to}
-emptying-trash = Opróżnianie {trash}
+    } z „{$from}” do „{$to}”
+emptying-trash = Opróżnianie {trash} ({$progress})…
 emptied-trash = Opróżniono {trash}
 extracting = Wypakowywanie {$items} {$items ->
         [one] elementu
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}” ({$progress})…
 extracted = Wypakowano {$items} {$items ->
         [one] element
         [few] elementy
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}”
 moving = Przenoszenie {$items} {$items ->
         [one] elementu
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}” ({$progress})…
 moved = Przeniesiono {$items} {$items ->
         [one] element
         [few] elementy
         *[other] elementów
-    } z {$from} do {$to}
+    } z „{$from}” do „{$to}”
 renaming = Zmieniana nazwa {$from} na {$to}
 renamed = Zmieniono nazwę {$from} na {$to}
 restoring = Przywracanie {$items} {$items ->
         [one] elementu
         *[other] elementów
-    } z {trash}
+    } z {trash} ({$progress})…
 restored = Przywrócono {$items} {$items ->
         [one] element
         [few] elementy
@@ -185,11 +200,18 @@ restored = Przywrócono {$items} {$items ->
 unknown-folder = nieznany katalog
 
 ## Open with
-open-with = Otwórz za pomocą...
+menu-open-with = Otwórz za pomocą…
 default-app = {$name} (domyślnie)
 
 ## Show details
 show-details = Pokaż szczegóły
+type = Typ: {$mime}
+items = Elementy: {$items}
+item-size = Rozmiar: {$size}
+item-created = Utworzono: {$created}
+item-modified = Zmodyfikowano: {$modified}
+item-accessed = Otwarto: {$accessed}
+calculating = Obliczanie…
 
 ## Settings
 settings = Ustawienia
@@ -202,7 +224,6 @@ dark = Ciemny
 light = Jasny
 
 # Context menu
-extract-here = Wypakuj
 add-to-sidebar = Dodaj do bocznego panelu
 compress = Spakuj
 extract-here = Wypakuj
@@ -218,9 +239,9 @@ sort-by-size = Uszereguj według rozmiaru
 sort-by-trashed = Uszereguj według czasu usunięcia
 
 ## Desktop
-change-wallpaper = Zmień tapetę...
-desktop-appearance = Wygląd pulpitu...
-display-settings = Ustawienia wyświetlacza...
+change-wallpaper = Zmień tapetę…
+desktop-appearance = Wygląd pulpitu…
+display-settings = Ustawienia wyświetlacza…
 
 # Menu
 
@@ -228,8 +249,7 @@ display-settings = Ustawienia wyświetlacza...
 file = Plik
 new-tab = Nowa karta
 new-window = Nowe okno
-rename = Zmień nazwę...
-menu-show-details = Pokaż szczegóły...
+rename = Zmień nazwę…
 close-tab = Zamknij kartę
 quit = Zamknij
 
@@ -250,8 +270,8 @@ list-view = Widok listy
 show-hidden-files = Pokaż ukryte pliki
 list-directories-first = Najpierw wyświetlaj katalogi
 gallery-preview = Podgąd galerii
-menu-settings = Ustawienia...
-menu-about = O Plikach COSMIC...
+menu-settings = Ustawienia…
+menu-about = O Plikach COSMIC…
 
 ## Sort
 sort = Uszereguj

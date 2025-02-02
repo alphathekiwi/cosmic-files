@@ -26,6 +26,14 @@ modified = Modified
 trashed-on = Trashed
 size = Size
 
+# Progress footer
+details = Details
+dismiss = Dismiss message
+operations-running = {$running} operations running ({$percent}%)...
+operations-running-finished = {$running} operations running ({$percent}%), {$finished} finished...
+pause = Pause
+resume = Resume
+
 # Dialogs
 
 ## Compress Dialog
@@ -34,6 +42,9 @@ create-archive = Create archive
 ## Empty Trash Dialog
 empty-trash = Empty trash
 empty-trash-warning = Are you sure you want to permanently delete all the items in Trash?
+
+## Mount Error Dialog
+mount-error = Unable to access drive
 
 ## New File/Folder Dialog
 create-new-file = Create new file
@@ -70,7 +81,7 @@ rename-folder = Rename folder
 
 ## Replace Dialog
 replace = Replace
-replace-title = {$filename} already exists in this location.
+replace-title = "{$filename}" already exists in this location.
 replace-warning = Do you want to replace it with the one you are saving? Replacing it will overwrite its content.
 replace-warning-operation = Do you want to replace it? Replacing it will overwrite its content.
 original-file = Original file
@@ -85,6 +96,7 @@ set-executable-and-launch-description = Do you want to set "{$name}" as executab
 set-and-launch = Set and launch
 
 ## Metadata Dialog
+open-with = Open with
 owner = Owner
 group = Group
 other = Other
@@ -123,57 +135,61 @@ try-again = Try again
 username = Username
 
 ## Operations
+cancelled = Cancelled
 edit-history = Edit history
 history = History
 no-history = No items in history.
 pending = Pending
+progress = {$percent}%
+progress-cancelled = {$percent}%, cancelled
+progress-paused = {$percent}%, paused
 failed = Failed
 complete = Complete
 compressing = Compressing {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}" ({$progress})...
 compressed = Compressed {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 copy_noun = Copy
-creating = Creating {$name} in {$parent}
-created = Created {$name} in {$parent}
+creating = Creating "{$name}" in "{$parent}"
+created = Created "{$name}" in "{$parent}"
 copying = Copying {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}" ({$progress})...
 copied = Copied {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
-emptying-trash = Emptying {trash}
+    } from "{$from}" to "{$to}"
+emptying-trash = Emptying {trash} ({$progress})...
 emptied-trash = Emptied {trash}
 extracting = Extracting {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}" ({$progress})...
 extracted = Extracted {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 setting-executable-and-launching = Setting "{$name}" as executable and launching
 set-executable-and-launched = Set "{$name}" as executable and launched
 moving = Moving {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}" ({$progress})...
 moved = Moved {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
-renaming = Renaming {$from} to {$to}
-renamed = Renamed {$from} to {$to}
+    } from "{$from}" to "{$to}"
+renaming = Renaming "{$from}" to "{$to}"
+renamed = Renamed "{$from}" to "{$to}"
 restoring = Restoring {$items} {$items ->
         [one] item
         *[other] items
-    } from {trash}
+    } from {trash} ({$progress})...
 restored = Restored {$items} {$items ->
         [one] item
         *[other] items
@@ -181,11 +197,18 @@ restored = Restored {$items} {$items ->
 unknown-folder = unknown folder
 
 ## Open with
-open-with = Open with...
+menu-open-with = Open with...
 default-app = {$name} (default)
 
 ## Show details
 show-details = Show details
+type = Type: {$mime}
+items = Items: {$items}
+item-size = Size: {$size}
+item-created = Created: {$created}
+item-modified = Modified: {$modified}
+item-accessed = Accessed: {$accessed}
+calculating = Calculating...
 
 ## Settings
 settings = Settings
