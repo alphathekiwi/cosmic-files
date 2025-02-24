@@ -19,6 +19,7 @@ mounted-drives = Gekoppelde schijven
 trash-folder-icon = Prullenbakicoon
 icon-size-and-spacing = Grootte en ruimte tussen iconen
 icon-size = Icoon grootte
+grid-spacing = Rastergrootte
 
 # List view
 name = Naam
@@ -38,6 +39,9 @@ resume = Hervatten
 
 ## Compress Dialog
 create-archive = Maak een archiefbestand
+
+## Extract Dialog
+extract-password-required = Wachtwoord vereist
 
 ## Empty Trash Dialog
 empty-trash = Prullenbak legen?
@@ -100,9 +104,22 @@ open-with = Openen met
 owner = Eigenaar
 group = Groep
 other = Anderen
-read = Lezen
-write = Schrijven
-execute = Uitvoeren
+### Mode 0
+none = Geen
+### Mode 1 (unusual)
+execute-only = Alleen uitvoerbaar
+### Mode 2 (unusual)
+write-only = Alleen schrijfbaar
+### Mode 3 (unusual)
+write-execute = Schrijf- en uitvoerbaar
+### Mode 4
+read-only = Alleen leesbaar
+### Mode 5
+read-execute = Lees- en uitvoerbaar
+### Mode 6
+read-write = Lees- en schrijfbaar
+### Mode 7
+read-write-execute = Lees-, schrijf- en uitvoerbaar
 
 # Context Pages
 
@@ -214,7 +231,7 @@ calculating = Wordt berekend...
 settings = Instellingen
 
 ### Appearance
-appearance = Uiterlijk
+appearance = Weergave
 theme = Thema
 match-desktop = Systeemstandaard
 dark = Donker

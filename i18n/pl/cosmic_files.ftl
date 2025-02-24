@@ -19,6 +19,7 @@ mounted-drives = Podpięte dyski
 trash-folder-icon = Ikona kosza
 icon-size-and-spacing = Rozmiar i rozstaw ikon
 icon-size = Rozmiar ikon
+grid-spacing = Rozstaw siatki
 
 # List view
 name = Nazwa
@@ -38,6 +39,9 @@ resume = Wznów
 
 ## Compress Dialog
 create-archive = Utwórz archiwum
+
+## Extract Dialog
+extract-password-required = Wymagane hasło
 
 ## Empty Trash Dialog
 empty-trash = Opróżnij kosz
@@ -96,12 +100,26 @@ set-executable-and-launch-description = Czy chcesz ustawić plik „{$name}” j
 set-and-launch = Ustaw i uruchom
 
 ## Metadata Dialog
+open-with = Otwórz za pomocą
 owner = Właściciel
 group = Grupa
 other = Inni
-read = Odczyt
-write = Zapis
-execute = Wykonywanie
+### Mode 0
+none = Brak
+### Mode 1 (unusual)
+execute-only = Tylko wykonywanie
+### Mode 2 (unusual)
+write-only = Tylko zapis
+### Mode 3 (unusual)
+write-execute = Zapis i wykonywanie
+### Mode 4
+read-only = Tylko odczyt
+### Mode 5
+read-execute = Odczyt i wykonywanie
+### Mode 6
+read-write = Odczyt i zapis
+### Mode 7
+read-write-execute = Odczyt, zapis i wykonywanie
 
 # Context Pages
 

@@ -18,6 +18,7 @@ use cosmic::{
     app::{self, context_drawer, message, Core, Task},
     cosmic_config, cosmic_theme, executor,
     iced::{
+        self,
         clipboard::dnd::DndAction,
         event,
         futures::{self, SinkExt},
@@ -54,6 +55,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{self, Instant},
 };
+use cosmic::iced::mouse::Event::CursorMoved;
 use tokio::sync::mpsc;
 use trash::TrashItem;
 #[cfg(feature = "wayland")]
@@ -279,6 +281,7 @@ pub enum Message {
     Config(Config),
     Copy(Option<Entity>),
     CosmicSettings(&'static str),
+    CursorMoved(Point),
     Cut(Option<Entity>),
     DesktopConfig(DesktopConfig),
     DesktopViewOptions,
@@ -288,6 +291,8 @@ pub enum Message {
     DialogUpdate(DialogPage),
     DialogUpdateComplete(DialogPage),
     ExtractHere(Option<Entity>),
+    #[cfg(all(feature = "desktop", feature = "wayland"))]
+    Focused(window::Id),
     Key(Modifiers, Key),
     LaunchUrl(String),
     MaybeExit,
@@ -331,6 +336,7 @@ pub enum Message {
     Rename(Option<Entity>),
     ReplaceResult(ReplaceResult),
     RestoreFromTrash(Option<Entity>),
+    ScrollTab(i16),
     SearchActivate,
     SearchClear,
     SearchInput(String),
@@ -549,6 +555,7 @@ pub struct App {
     tab_dnd_hover: Option<(Entity, Instant)>,
     nav_drag_id: DragId,
     tab_drag_id: DragId,
+    auto_scroll_speed: Option<i16>
 }
 
 impl App {
@@ -1277,7 +1284,9 @@ impl App {
     }
 
     fn desktop_view_options(&self) -> Element<Message> {
-        let cosmic_theme::Spacing { space_l, .. } = theme::active().cosmic().spacing;
+        let cosmic_theme::Spacing {
+            space_m, space_l, ..
+        } = theme::active().cosmic().spacing;
         let config = self.config.desktop;
 
         let mut children = Vec::new();
@@ -1352,6 +1361,7 @@ impl App {
 
         widget::column::with_children(children)
             .padding([0, space_l, space_l, space_l])
+            .spacing(space_m)
             .into()
     }
 
@@ -1624,6 +1634,7 @@ impl Application for App {
             tab_dnd_hover: None,
             nav_drag_id: DragId::new(),
             tab_drag_id: DragId::new(),
+            auto_scroll_speed: None,
         };
 
         let mut commands = vec![app.update_config()];
@@ -1923,6 +1934,10 @@ impl Application for App {
                 let paths = self.selected_paths(entity_opt);
                 let contents = ClipboardCopy::new(ClipboardKind::Copy, &paths);
                 return clipboard::write_data(contents);
+            }
+            Message::CursorMoved(pos) => {
+                let entity = self.tab_model.active();
+                return self.update(Message::TabMessage(Some(entity), tab::Message::CursorMoved(pos)));
             }
             Message::Cut(entity_opt) => {
                 let paths = self.selected_paths(entity_opt);
@@ -2820,6 +2835,10 @@ impl Application for App {
                     self.operation(Operation::Restore { items: trash_items });
                 }
             }
+            Message::ScrollTab(scroll_speed) => {
+                let entity = self.tab_model.active();
+                return self.update(Message::TabMessage(Some(entity), tab::Message::ScrollTab((scroll_speed as f32) / 10.0)));
+            }
             Message::SearchActivate => {
                 return if self.search_get().is_none() {
                     self.search_set_active(Some(String::new()))
@@ -2956,6 +2975,17 @@ impl Application for App {
                             }
                             config_set!(favorites, favorites);
                             commands.push(self.update_config());
+                        }
+                        tab::Command::AutoScroll(scroll_speed) => {
+                            // converting an f32 to an i16 here by multiplying by 10 and casting to i16
+                            // further resolution isn't necessary
+                            if let Some(scroll_speed_float) = scroll_speed {
+                                self.auto_scroll_speed = Some((scroll_speed_float * 10.0) as i16);
+                            }
+                            else {
+                                self.auto_scroll_speed = None;
+                            }
+
                         }
                         tab::Command::ChangeLocation(tab_title, tab_path, selection_paths) => {
                             self.activate_nav_model_location(&tab_path);
@@ -3549,6 +3579,15 @@ impl Application for App {
             Message::Size(size) => {
                 self.size = Some(size);
                 self.handle_overlap();
+            }
+            #[cfg(all(feature = "desktop", feature = "wayland"))]
+            Message::Focused(id) => {
+                if let Some(w) = self.windows.get(&id) {
+                    match w {
+                        WindowKind::Desktop(entity) => self.tab_model.activate(*entity),
+                        _ => {}
+                    };
+                }
             }
         }
 
@@ -4540,6 +4579,8 @@ impl Application for App {
                     Some(Message::Modifiers(modifiers))
                 }
                 Event::Window(WindowEvent::Unfocused) => Some(Message::WindowUnfocus),
+                #[cfg(all(feature = "desktop", feature = "wayland"))]
+                Event::Window(WindowEvent::Focused) => Some(Message::Focused(window_id)),
                 Event::Window(WindowEvent::CloseRequested) => Some(Message::WindowClose),
                 Event::Window(WindowEvent::Opened { position: _, size }) => {
                     Some(Message::Size(size))
@@ -4557,7 +4598,8 @@ impl Application for App {
                         }
                         _ => None,
                     }
-                }
+                },
+                Event::Mouse(CursorMoved { position: pos }) => Some(Message::CursorMoved(pos)),
                 _ => None,
             }),
             Config::subscription().map(|update| {
@@ -4727,6 +4769,13 @@ impl Application for App {
                 }),
             ),
         ];
+
+        if let Some(scroll_speed) = self.auto_scroll_speed {
+            subscriptions.push(
+                iced::time::every(time::Duration::from_millis(10)).with(scroll_speed)
+                    .map(|(scroll_speed, _)| Message::ScrollTab(scroll_speed))
+            );
+        }
 
         for (key, mounter) in MOUNTERS.iter() {
             subscriptions.push(
