@@ -121,6 +121,16 @@ read-write = Lees- en schrijfbaar
 ### Mode 7
 read-write-execute = Lees-, schrijf- en uitvoerbaar
 
+## Favorite Path Error Dialog
+favorite-path-error = Fout bij het openen van de map
+favorite-path-error-description =
+    Kon de map '{$path}' niet openen.
+    De map bestaat mogelijk niet of u mist de juiste rechten.
+
+    Wilt u het uit de zijbalk verwijderen?
+remove = Verwijderen
+keep = Behouden
+
 # Context Pages
 
 ## About
@@ -181,6 +191,14 @@ copied = {$items} {$items ->
         [one] bestand
         *[other] bestanden
     } gekopieerd van '$from}' naar '{$to}'
+deleting = {$items} {$items ->
+        [one] bestand wordt
+        *[other] bestanden worden
+    } verwijderd uit {trash} ({$progress})...
+deleted = {$items} {$items ->
+        [one] bestand
+        *[other] bestanden
+    } verwijderd uit {trash}
 emptying-trash = {trash} wordt geleegd ({$progress})...
 emptied-trash = {trash} geleegd
 extracting = {$items} {$items -> 
@@ -237,9 +255,15 @@ match-desktop = Systeemstandaard
 dark = Donker
 light = Licht
 
+### Type to Search
+type-to-search = Typ om te zoeken
+type-to-search-recursive = In deze map en alle onderliggende mappen zoeken
+type-to-search-enter-path = Naar de bestandslocatie of -naam zoeken
+
 # Context menu
 add-to-sidebar = Aan de zijbalk toevoegen
 compress = Comprimeren
+delete-permanently = Permanent verwijderen
 extract-here = Uitpakken
 new-file = Nieuw bestand...
 new-folder = Nieuwe map...

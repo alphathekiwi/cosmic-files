@@ -121,6 +121,16 @@ read-write = Read and write
 ### Mode 7
 read-write-execute = Read, write, and execute
 
+## Favorite Path Error Dialog
+favorite-path-error = Error opening directory
+favorite-path-error-description =
+    Unable to open "{$path}".
+    It may not exist or you don't have permission to open it.
+    
+    Would you like to remove it from the sidebar?
+remove = Remove
+keep = Keep
+
 # Context Pages
 
 ## About
@@ -181,6 +191,14 @@ copied = Copied {$items} {$items ->
         [one] item
         *[other] items
     } from "{$from}" to "{$to}"
+deleting = Deleting {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {trash} ({$progress})...
+deleted = Deleted {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {trash}
 emptying-trash = Emptying {trash} ({$progress})...
 emptied-trash = Emptied {trash}
 extracting = Extracting {$items} {$items ->
@@ -237,9 +255,15 @@ match-desktop = Match desktop
 dark = Dark
 light = Light
 
+### Type to Search
+type-to-search = Type to Search
+type-to-search-recursive = Searches the current folder and all sub-folders
+type-to-search-enter-path = Enters the path to the directory or file
+
 # Context menu
 add-to-sidebar = Add to sidebar
 compress = Compress
+delete-permanently = Delete permanently
 extract-here = Extract
 new-file = New file...
 new-folder = New folder...

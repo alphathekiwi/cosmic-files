@@ -87,7 +87,9 @@ const DRAG_SCROLL_DISTANCE: f32 = 15.0;
 
 //TODO: adjust for locales?
 const DATE_TIME_FORMAT: &str = "%b %-d, %-Y, %-I:%M %p";
+const DATE_TIME_FORMAT_MILITARY: &str = "%b %-d, %-Y, %-H:%M %p";
 const TIME_FORMAT: &str = "%-I:%M %p";
+const TIME_FORMAT_MILITARY: &str = "%-H:%M %p";
 static SPECIAL_DIRS: Lazy<HashMap<PathBuf, &'static str>> = Lazy::new(|| {
     let mut special_dirs = HashMap::new();
     if let Some(dir) = dirs::document_dir() {
@@ -380,10 +382,13 @@ fn format_permissions(metadata: &Metadata, owner: PermissionOwner) -> String {
     }
 }
 
-struct FormatTime(SystemTime);
+struct FormatTime {
+    pub time: SystemTime,
+    pub military_time: bool,
+}
 
 impl FormatTime {
-    fn from_secs(secs: i64) -> Option<Self> {
+    fn from_secs(secs: i64, military_time: bool) -> Option<Self> {
         // This looks convoluted because we need to ensure the units match up
         let secs: u64 = secs.try_into().ok()?;
         let now = SystemTime::now();
@@ -393,31 +398,51 @@ impl FormatTime {
             .ok()
             .and_then(|now_secs| now_secs.checked_sub(secs))
             .map(Duration::from_secs)?;
-        now.checked_add(filetime_diff).map(FormatTime)
+        now.checked_sub(filetime_diff).map(|time| Self {
+            time,
+            military_time,
+        })
     }
 }
 
 impl Display for FormatTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let date_time = chrono::DateTime::<chrono::Local>::from(self.0);
+        let date_time = chrono::DateTime::<chrono::Local>::from(self.time);
         let now = chrono::Local::now();
         if date_time.date_naive() == now.date_naive() {
             write!(
                 f,
                 "{}, {}",
                 fl!("today"),
-                date_time.format_localized(TIME_FORMAT, *LANGUAGE_CHRONO)
+                date_time.format_localized(
+                    if self.military_time {
+                        TIME_FORMAT_MILITARY
+                    } else {
+                        TIME_FORMAT
+                    },
+                    *LANGUAGE_CHRONO
+                )
             )
         } else {
             date_time
-                .format_localized(DATE_TIME_FORMAT, *LANGUAGE_CHRONO)
+                .format_localized(
+                    if self.military_time {
+                        DATE_TIME_FORMAT_MILITARY
+                    } else {
+                        DATE_TIME_FORMAT
+                    },
+                    *LANGUAGE_CHRONO,
+                )
                 .fmt(f)
         }
     }
 }
 
-fn format_time(time: SystemTime) -> FormatTime {
-    FormatTime(time)
+const fn format_time(time: SystemTime, military_time: bool) -> FormatTime {
+    FormatTime {
+        time,
+        military_time,
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -1030,6 +1055,16 @@ impl std::fmt::Display for Location {
 }
 
 impl Location {
+    pub fn normalize(&self) -> Self {
+        if let Some(mut path) = self.path_opt().map(|x| x.to_path_buf()) {
+            // Add trailing slash if location is a path
+            path.push("");
+            self.with_path(path)
+        } else {
+            self.clone()
+        }
+    }
+
     pub fn path_opt(&self) -> Option<&PathBuf> {
         match self {
             Self::Desktop(path, ..) => Some(path),
@@ -1102,12 +1137,12 @@ pub enum Command {
     AddToSidebar(PathBuf),
     AutoScroll(Option<f32>),
     ChangeLocation(String, Location, Option<Vec<PathBuf>>),
+    Delete(Vec<PathBuf>),
     DropFiles(PathBuf, ClipboardPaste),
     EmptyTrash,
     #[cfg(feature = "desktop")]
     ExecEntryAction(cosmic::desktop::DesktopEntryData, usize),
     Iced(TaskWrapper),
-    MoveToTrash(Vec<PathBuf>),
     OpenFile(PathBuf),
     OpenInNewTab(PathBuf),
     OpenInNewWindow(PathBuf),
@@ -1497,6 +1532,7 @@ impl Item {
         &'a self,
         mime_app_cache_opt: Option<&'a mime_app::MimeAppCache>,
         sizes: IconSizes,
+        military_time: bool,
     ) -> Element<'a, Message> {
         let cosmic_theme::Spacing {
             space_xxxs,
@@ -1558,21 +1594,21 @@ impl Item {
                 if let Ok(time) = metadata.created() {
                     details = details.push(widget::text::body(fl!(
                         "item-created",
-                        created = format_time(time).to_string()
+                        created = format_time(time, military_time).to_string()
                     )));
                 }
 
                 if let Ok(time) = metadata.modified() {
                     details = details.push(widget::text::body(fl!(
                         "item-modified",
-                        modified = format_time(time).to_string()
+                        modified = format_time(time, military_time).to_string()
                     )));
                 }
 
                 if let Ok(time) = metadata.accessed() {
                     details = details.push(widget::text::body(fl!(
                         "item-accessed",
-                        accessed = format_time(time).to_string()
+                        accessed = format_time(time, military_time).to_string()
                     )));
                 }
 
@@ -1638,7 +1674,12 @@ impl Item {
         column.into()
     }
 
-    pub fn replace_view(&self, heading: String, sizes: IconSizes) -> Element<'_, Message> {
+    pub fn replace_view(
+        &self,
+        heading: String,
+        sizes: IconSizes,
+        military_time: bool,
+    ) -> Element<'_, Message> {
         let cosmic_theme::Spacing { space_xxxs, .. } = theme::active().cosmic().spacing;
 
         let mut row = widget::row().spacing(space_xxxs);
@@ -1662,7 +1703,7 @@ impl Item {
                 if let Ok(time) = metadata.modified() {
                     column = column.push(widget::text::body(format!(
                         "Last modified: {}",
-                        format_time(time)
+                        format_time(time, military_time)
                     )));
                 }
             }
@@ -1842,7 +1883,7 @@ impl Tab {
     pub fn new(location: Location, config: TabConfig) -> Self {
         let history = vec![location.clone()];
         Self {
-            location,
+            location: location.normalize(),
             context_menu: None,
             location_context_menu_point: None,
             location_context_menu_index: None,
@@ -1873,7 +1914,7 @@ impl Tab {
             viewport_rect: None,
             virtual_cursor_offset: None,
             last_scroll_position: None,
-            last_scroll_offset: None
+            last_scroll_offset: None,
         }
     }
 
@@ -2167,7 +2208,7 @@ impl Tab {
     }
 
     pub fn change_location(&mut self, location: &Location, history_i_opt: Option<usize>) {
-        self.location = location.clone();
+        self.location = location.normalize();
         self.context_menu = None;
         self.edit_location = None;
         self.items_opt = None;
@@ -2181,6 +2222,21 @@ impl Tab {
         } else {
             // Truncate history to remove next entries
             self.history.truncate(self.history_i + 1);
+
+            // Compact consecutive search locations
+            {
+                let mut remove = false;
+                if let Some(last_location) = self.history.last() {
+                    if let Location::Search(last_path, ..) = last_location {
+                        if let Location::Search(path, ..) = location {
+                            remove = last_path == path;
+                        }
+                    }
+                }
+                if remove {
+                    self.history.pop();
+                }
+            }
 
             // Push to the front of history
             self.history_i = self.history.len();
@@ -2228,7 +2284,7 @@ impl Tab {
                                 // if our mouse is above the scrollable viewport, we want to scroll up
                                 let drag_start_point = Point {
                                     x: viewport.x,
-                                    y: viewport.y
+                                    y: viewport.y,
                                 };
                                 // diff_y should be NEGATIVE here when close to y=0 (above the MouseArea)
                                 // and positive when below the viewport
@@ -2241,39 +2297,30 @@ impl Tab {
                                     0.0
                                 };
 
-
-
                                 commands.push(Command::AutoScroll(Some(scroll_y)));
-                            }
-                            else {
+                            } else {
                                 if let Some(last_scroll_offset) = self.last_scroll_offset {
                                     if let Some(last_scroll_position) = self.last_scroll_position {
                                         self.virtual_cursor_offset = Some(Point {
                                             x: 0.0,
-                                            y: (pos.y - last_scroll_position.y + last_scroll_offset.y)
+                                            y: (pos.y - last_scroll_position.y
+                                                + last_scroll_offset.y),
                                         });
                                     }
-
-                                }
-                                else {
+                                } else {
                                     if let Some(last_scroll_position) = self.last_scroll_position {
                                         self.virtual_cursor_offset = Some(Point {
                                             x: 0.0,
-                                            y: (pos.y - last_scroll_position.y)
+                                            y: (pos.y - last_scroll_position.y),
                                         });
-                                    }
-                                    else {
-                                        self.virtual_cursor_offset = Some(Point {
-                                            x: 0.0,
-                                            y: 0.0
-                                        });
+                                    } else {
+                                        self.virtual_cursor_offset = Some(Point { x: 0.0, y: 0.0 });
                                     }
                                 }
 
                                 commands.push(Command::AutoScroll(None));
                             }
-                        }
-                        else {
+                        } else {
                             // reset our virtual cursor offset when we're back in bounds
                             self.virtual_cursor_offset = None;
                             self.last_scroll_position = Some(pos);
@@ -2292,13 +2339,11 @@ impl Tab {
                         x: viewport.x - scroll_pos.x,
                         y: viewport.y - scroll_pos.y,
                         width: viewport.width,
-                        height: viewport.height
+                        height: viewport.height,
                     });
-                }
-                else {
+                } else {
                     self.viewport_rect = Some(viewport);
                 }
-
             }
             Message::DragEnd(_) => {
                 self.clicked = None;
@@ -2947,7 +2992,7 @@ impl Tab {
             Message::ScrollTab(scroll_speed) => {
                 let mut new_offset = Point {
                     x: 0.0,
-                    y: scroll_speed
+                    y: scroll_speed,
                 };
 
                 if let Some(virtual_cursor_offset) = self.virtual_cursor_offset {
@@ -2961,17 +3006,20 @@ impl Tab {
                     if let Some(global_cursor_position) = self.global_cursor_position {
                         new_offset.x = global_cursor_position.x - last_scroll_position.x;
                     }
-
                 }
 
                 self.virtual_cursor_offset = Some(new_offset);
                 self.last_scroll_offset = Some(new_offset);
 
                 commands.push(Command::Iced(
-                    scrollable::scroll_by(self.scrollable_id.clone(), AbsoluteOffset {
-                        x: 0.0,
-                        y: scroll_speed
-                    }).into(),
+                    scrollable::scroll_by(
+                        self.scrollable_id.clone(),
+                        AbsoluteOffset {
+                            x: 0.0,
+                            y: scroll_speed,
+                        },
+                    )
+                    .into(),
                 ));
             }
             Message::ScrollToFocus => {
@@ -3165,7 +3213,7 @@ impl Tab {
                         commands.push(Command::DropFiles(to, from))
                     }
                     Location::Trash if matches!(from.kind, ClipboardKind::Cut) => {
-                        commands.push(Command::MoveToTrash(from.paths))
+                        commands.push(Command::Delete(from.paths))
                     }
                     _ => {
                         log::warn!("{:?} to {:?} is not supported.", from.kind, to);
@@ -3529,7 +3577,7 @@ impl Tab {
             row = row.push(widget::Space::with_width(Length::Fixed(space_m.into())));
             // This mouse area provides window drag while the header bar is hidden
             let mouse_area = mouse_area::MouseArea::new(row)
-                .on_drag(|_| Message::WindowDrag)
+                .on_press(|_| Message::WindowDrag)
                 .on_double_click(|_| Message::WindowToggleMaximize);
             column = column.push(mouse_area);
         }
@@ -3826,7 +3874,11 @@ impl Tab {
                         widget::button::custom(row)
                             .padding(space_xxxs)
                             .class(theme::Button::Link)
-                            .on_press(Message::Location(location.clone())),
+                            .on_press(if ancestor == path {
+                                Message::EditLocation(Some(self.location.clone().into()))
+                            } else {
+                                Message::Location(location.clone())
+                            }),
                     );
 
                     if self.location_context_menu_index.is_some() {
@@ -4311,14 +4363,17 @@ impl Tab {
                     y += 1;
                 }
 
+                let military_time = self.config.military_time;
                 let modified_text = match &item.metadata {
                     ItemMetadata::Path { metadata, .. } => match metadata.modified() {
-                        Ok(time) => format_time(time).to_string(),
+                        Ok(time) => format_time(time, military_time).to_string(),
                         Err(_) => String::new(),
                     },
-                    ItemMetadata::Trash { entry, .. } => FormatTime::from_secs(entry.time_deleted)
-                        .map(|t| t.to_string())
-                        .unwrap_or_default(),
+                    ItemMetadata::Trash { entry, .. } => {
+                        FormatTime::from_secs(entry.time_deleted, military_time)
+                            .map(|t| t.to_string())
+                            .unwrap_or_default()
+                    }
                     _ => String::new(),
                 };
 

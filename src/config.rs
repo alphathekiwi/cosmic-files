@@ -3,7 +3,7 @@
 use std::{any::TypeId, num::NonZeroU16, path::PathBuf};
 
 use cosmic::{
-    cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry},
+    cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, ConfigGet, CosmicConfigEntry},
     iced::Subscription,
     theme, Application,
 };
@@ -95,6 +95,12 @@ impl Favorite {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum TypeToSearch {
+    Recursive,
+    EnterPath,
+}
+
 #[derive(Clone, CosmicConfigEntry, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
 pub struct Config {
@@ -103,6 +109,7 @@ pub struct Config {
     pub favorites: Vec<Favorite>,
     pub show_details: bool,
     pub tab: TabConfig,
+    pub type_to_search: TypeToSearch,
 }
 
 impl Config {
@@ -150,6 +157,7 @@ impl Default for Config {
             ],
             show_details: false,
             tab: TabConfig::default(),
+            type_to_search: TypeToSearch::Recursive,
         }
     }
 }
@@ -197,6 +205,10 @@ pub struct TabConfig {
     pub show_hidden: bool,
     /// Icon zoom
     pub icon_sizes: IconSizes,
+    #[serde(skip, default = "military_time_enabled")]
+    /// 24 hour clock; this is neither serialized nor deserialized because we use the user's global
+    /// preference rather than save it
+    pub military_time: bool,
 }
 
 impl Default for TabConfig {
@@ -206,6 +218,22 @@ impl Default for TabConfig {
             folders_first: true,
             show_hidden: false,
             icon_sizes: IconSizes::default(),
+            military_time: military_time_enabled(),
+        }
+    }
+}
+
+/// Return whether the user enabled military time via the Time applet.
+fn military_time_enabled() -> bool {
+    // Borrowed from COSMIC Greeter
+    match cosmic_config::Config::new("com.system76.CosmicAppletTime", 1) {
+        Ok(config_handler) => config_handler.get("military_time").unwrap_or_default(),
+        Err(err) => {
+            log::error!(
+                "failed to create CosmicAppletTime config handler: {:?}",
+                err
+            );
+            false
         }
     }
 }
