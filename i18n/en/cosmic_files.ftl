@@ -42,6 +42,8 @@ create-archive = Create archive
 
 ## Extract Dialog
 extract-password-required = Password required
+extract-to = Extract To...
+extract-to-title = Extract to folder
 
 ## Empty Trash Dialog
 empty-trash = Empty trash
@@ -247,6 +249,7 @@ calculating = Calculating...
 
 ## Settings
 settings = Settings
+single-click = Single click to open
 
 ### Appearance
 appearance = Appearance

@@ -14,11 +14,11 @@ today = Vandaag
 # Desktop view options
 desktop-view-options = Opties voor bureaubladweergave...
 show-on-desktop = Op bureaublad weergeven
-desktop-folder-content = Bestanden in Bureaublad
+desktop-folder-content = Bestanden in de map Bureaublad
 mounted-drives = Gekoppelde schijven
 trash-folder-icon = Prullenbakicoon
 icon-size-and-spacing = Grootte en ruimte tussen iconen
-icon-size = Icoon grootte
+icon-size = Icoongrootte
 grid-spacing = Rastergrootte
 
 # List view
@@ -32,7 +32,7 @@ details = Details
 dismiss = Bericht negeren
 operations-running = {$running} bewerkingen worden uitgevoerd ({$percent}%)...
 operations-running-finished = {$running} bewerkingen worden uitgevoerd ({$percent}%), {$finished} voltooid...
-pause = Pauze
+pause = Pauzeren
 resume = Hervatten
 
 # Dialogs
@@ -42,6 +42,7 @@ create-archive = Maak een archiefbestand
 
 ## Extract Dialog
 extract-password-required = Wachtwoord vereist
+extract-to = Uitpakken naar...
 
 ## Empty Trash Dialog
 empty-trash = Prullenbak legen?
@@ -220,7 +221,7 @@ moved = {$items} {$items ->
         *[other] bestanden
     } verplaatst van '{$form}' naar '{$to}'
 renaming = '{$from}' als '{$to}' hernoemen
-renamed = '{$form}' als '{$to}' hernoemd
+renamed = '{$from}' als '{$to}' hernoemd
 restoring = {$items} {$items ->
         [one] bestand wordt
         *[other] bestanden worden
@@ -247,6 +248,7 @@ calculating = Wordt berekend...
 
 ## Settings
 settings = Instellingen
+single-click = Een keer klikken om te openen
 
 ### Appearance
 appearance = Weergave

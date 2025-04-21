@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use cosmic::{
+    app::Core,
     iced::{Alignment, Background, Border, Length},
     theme,
     widget::{
         self, button, column, container, divider, horizontal_space,
         menu::{self, key_bind::KeyBind, ItemHeight, ItemWidth, MenuBar},
-        text, Row,
+        responsive_menu_bar, text, Row,
     },
     Element,
 };
 use i18n_embed::LanguageLoader;
 use mime_guess::Mime;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 use crate::{
     app::{Action, Message},
@@ -20,6 +21,9 @@ use crate::{
     fl,
     tab::{self, HeadingOptions, Location, LocationMenuAction, Tab},
 };
+
+static MENU_ID: LazyLock<cosmic::widget::Id> =
+    LazyLock::new(|| cosmic::widget::Id::new("responsive-menu"));
 
 macro_rules! menu_button {
     ($($x:expr),+ $(,)?) => (
@@ -121,7 +125,7 @@ pub fn context_menu<'a>(
             let lang_id = crate::localize::LANGUAGE_LOADER.current_language();
             let language = lang_id.language.as_str();
             // Cache?
-            cosmic::desktop::load_desktop_file(Some(language), path)
+            cosmic::desktop::load_desktop_file(&[language.into()], path.into())
         } else {
             None
         }
@@ -191,9 +195,9 @@ pub fn context_menu<'a>(
                     "application/x-bzip",
                     #[cfg(feature = "bzip2")]
                     "application/x-bzip-compressed-tar",
-                    #[cfg(feature = "liblzma")]
+                    #[cfg(feature = "xz2")]
                     "application/x-xz",
-                    #[cfg(feature = "liblzma")]
+                    #[cfg(feature = "xz2")]
                     "application/x-xz-compressed-tar",
                 ]
                 .iter()
@@ -202,6 +206,7 @@ pub fn context_menu<'a>(
                 selected_types.retain(|t| !supported_archive_types.contains(t));
                 if selected_types.is_empty() {
                     children.push(menu_item(fl!("extract-here"), Action::ExtractHere).into());
+                    children.push(menu_item(fl!("extract-to"), Action::ExtractTo).into());
                 }
                 children.push(menu_item(fl!("compress"), Action::Compress).into());
                 children.push(divider::horizontal::light().into());
@@ -487,6 +492,7 @@ pub fn dialog_menu(
 }
 
 pub fn menu_bar<'a>(
+    core: &Core,
     tab_opt: Option<&Tab>,
     config: &Config,
     key_binds: &HashMap<KeyBind, Action>,
@@ -521,11 +527,18 @@ pub fn menu_bar<'a>(
         }
     };
 
-    MenuBar::new(vec![
-        menu::Tree::with_children(
-            menu::root(fl!("file")),
-            menu::items(
-                key_binds,
+    responsive_menu_bar()
+        .item_height(ItemHeight::Dynamic(40))
+        .item_width(ItemWidth::Uniform(360))
+        .spacing(theme::active().cosmic().spacing.space_xxxs.into())
+        .into_element(
+        core,
+        key_binds,
+        MENU_ID.clone(),
+        Message::Surface,
+        vec![
+            (
+                fl!("file"),
                 vec![
                     menu::Item::Button(fl!("new-tab"), None, Action::TabNew),
                     menu::Item::Button(fl!("new-window"), None, Action::WindowNew),
@@ -556,11 +569,8 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("quit"), None, Action::WindowClose),
                 ],
             ),
-        ),
-        menu::Tree::with_children(
-            menu::root(fl!("edit")),
-            menu::items(
-                key_binds,
+            (
+                (fl!("edit")),
                 vec![
                     menu_button_optional(fl!("cut"), Action::Cut, selected > 0),
                     menu_button_optional(fl!("copy"), Action::Copy, selected > 0),
@@ -570,11 +580,8 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("history"), None, Action::EditHistory),
                 ],
             ),
-        ),
-        menu::Tree::with_children(
-            menu::root(fl!("view")),
-            menu::items(
-                key_binds,
+            (
+                (fl!("view")),
                 vec![
                     menu::Item::Button(fl!("zoom-in"), None, Action::ZoomIn),
                     menu::Item::Button(fl!("default-size"), None, Action::ZoomDefault),
@@ -623,11 +630,8 @@ pub fn menu_bar<'a>(
                     menu::Item::Button(fl!("menu-about"), None, Action::About),
                 ],
             ),
-        ),
-        menu::Tree::with_children(
-            menu::root(fl!("sort")),
-            menu::items(
-                key_binds,
+            (
+                (fl!("sort")),
                 vec![
                     sort_item(fl!("sort-a-z"), tab::HeadingOptions::Name, true),
                     sort_item(fl!("sort-z-a"), tab::HeadingOptions::Name, false),
@@ -662,13 +666,9 @@ pub fn menu_bar<'a>(
                     //TODO: sort by type
                 ],
             ),
-        ),
-    ])
-    .item_height(ItemHeight::Dynamic(40))
-    .item_width(ItemWidth::Uniform(360))
-    .spacing(theme::active().cosmic().spacing.space_xxxs.into())
-    .into()
-}
+        ],
+    )
+    }
 
 pub fn location_context_menu<'a>(ancestor_index: usize) -> Element<'a, tab::Message> {
     //TODO: only add some of these when in App mode

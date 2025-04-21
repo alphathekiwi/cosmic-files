@@ -37,8 +37,12 @@ use cosmic::{
     Element,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use i18n_embed::LanguageLoader;
+use icu::datetime::{
+    options::{components, preferences},
+    DateTimeFormatter, DateTimeFormatterOptions,
+};
 use mime_guess::{mime, Mime};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -64,7 +68,7 @@ use crate::{
     config::{DesktopConfig, IconSizes, TabConfig, ICON_SCALE_MAX, ICON_SIZE_GRID},
     dialog::DialogKind,
     fl,
-    localize::{LANGUAGE_CHRONO, LANGUAGE_SORTER},
+    localize::{LANGUAGE_SORTER, LOCALE},
     menu, mime_app,
     mime_icon::{mime_for_path, mime_icon},
     mounter::MOUNTERS,
@@ -85,11 +89,6 @@ const THUMBNAIL_SIZE: u32 = (ICON_SIZE_GRID as u32) * (ICON_SCALE_MAX as u32);
 
 const DRAG_SCROLL_DISTANCE: f32 = 15.0;
 
-//TODO: adjust for locales?
-const DATE_TIME_FORMAT: &str = "%b %-d, %-Y, %-I:%M %p";
-const DATE_TIME_FORMAT_MILITARY: &str = "%b %-d, %-Y, %-H:%M %p";
-const TIME_FORMAT: &str = "%-I:%M %p";
-const TIME_FORMAT_MILITARY: &str = "%-H:%M %p";
 static SPECIAL_DIRS: Lazy<HashMap<PathBuf, &'static str>> = Lazy::new(|| {
     let mut special_dirs = HashMap::new();
     if let Some(dir) = dirs::document_dir() {
@@ -382,13 +381,50 @@ fn format_permissions(metadata: &Metadata, owner: PermissionOwner) -> String {
     }
 }
 
-struct FormatTime {
-    pub time: SystemTime,
-    pub military_time: bool,
+fn date_time_formatter(military_time: bool) -> DateTimeFormatter {
+    let mut bag = components::Bag::empty();
+    bag.day = Some(components::Day::NumericDayOfMonth);
+    bag.month = Some(components::Month::Short);
+    bag.year = Some(components::Year::Numeric);
+    bag = bag.merge(time_bag(military_time));
+    let options = DateTimeFormatterOptions::Components(bag);
+
+    DateTimeFormatter::try_new_experimental(&LOCALE.as_ref().into(), options)
+        .expect("failed to create DateTimeFormatter")
 }
 
-impl FormatTime {
-    fn from_secs(secs: i64, military_time: bool) -> Option<Self> {
+fn time_formatter(military_time: bool) -> DateTimeFormatter {
+    let options = DateTimeFormatterOptions::Components(time_bag(military_time));
+
+    DateTimeFormatter::try_new_experimental(&LOCALE.as_ref().into(), options)
+        .expect("failed to create DateTimeFormatter")
+}
+
+fn time_bag(military_time: bool) -> components::Bag {
+    let mut bag = components::Bag::empty();
+    bag.hour = Some(components::Numeric::Numeric);
+    bag.minute = Some(components::Numeric::Numeric);
+    let hour_cyle = if military_time {
+        preferences::HourCycle::H23
+    } else {
+        preferences::HourCycle::H12
+    };
+    bag.preferences = Some(preferences::Bag::from_hour_cycle(hour_cyle));
+    bag
+}
+
+struct FormatTime<'a> {
+    pub time: SystemTime,
+    pub date_time_formatter: &'a DateTimeFormatter,
+    pub time_formatter: &'a DateTimeFormatter,
+}
+
+impl<'a> FormatTime<'a> {
+    fn from_secs(
+        secs: i64,
+        date_time_formatter: &'a DateTimeFormatter,
+        time_formatter: &'a DateTimeFormatter,
+    ) -> Option<Self> {
         // This looks convoluted because we need to ensure the units match up
         let secs: u64 = secs.try_into().ok()?;
         let now = SystemTime::now();
@@ -400,48 +436,57 @@ impl FormatTime {
             .map(Duration::from_secs)?;
         now.checked_sub(filetime_diff).map(|time| Self {
             time,
-            military_time,
+            date_time_formatter,
+            time_formatter,
         })
     }
 }
 
-impl Display for FormatTime {
+impl Display for FormatTime<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let date_time = chrono::DateTime::<chrono::Local>::from(self.time);
+        let datetime = chrono::DateTime::<chrono::Local>::from(self.time);
         let now = chrono::Local::now();
-        if date_time.date_naive() == now.date_naive() {
+        let icu_datetime = icu::calendar::DateTime::try_new_iso_datetime(
+            datetime.year(),
+            datetime.month() as u8,
+            datetime.day() as u8,
+            datetime.hour() as u8,
+            datetime.minute() as u8,
+            datetime.second() as u8,
+        )
+        .expect("failed to construct DateTime")
+        .to_any();
+
+        if datetime.date_naive() == now.date_naive() {
             write!(
                 f,
                 "{}, {}",
                 fl!("today"),
-                date_time.format_localized(
-                    if self.military_time {
-                        TIME_FORMAT_MILITARY
-                    } else {
-                        TIME_FORMAT
-                    },
-                    *LANGUAGE_CHRONO
-                )
+                self.time_formatter
+                    .format(&icu_datetime)
+                    .map_err(|_| fmt::Error)?
             )
         } else {
-            date_time
-                .format_localized(
-                    if self.military_time {
-                        DATE_TIME_FORMAT_MILITARY
-                    } else {
-                        DATE_TIME_FORMAT
-                    },
-                    *LANGUAGE_CHRONO,
-                )
-                .fmt(f)
+            write!(
+                f,
+                "{}",
+                self.date_time_formatter
+                    .format(&icu_datetime)
+                    .map_err(|_| fmt::Error)?
+            )
         }
     }
 }
 
-const fn format_time(time: SystemTime, military_time: bool) -> FormatTime {
+const fn format_time<'a>(
+    time: SystemTime,
+    date_time_formatter: &'a DateTimeFormatter,
+    time_formatter: &'a DateTimeFormatter,
+) -> FormatTime<'a> {
     FormatTime {
         time,
-        military_time,
+        date_time_formatter,
+        time_formatter,
     }
 }
 
@@ -1143,7 +1188,7 @@ pub enum Command {
     #[cfg(feature = "desktop")]
     ExecEntryAction(cosmic::desktop::DesktopEntryData, usize),
     Iced(TaskWrapper),
-    OpenFile(PathBuf),
+    OpenFile(Vec<PathBuf>),
     OpenInNewTab(PathBuf),
     OpenInNewWindow(PathBuf),
     OpenTrash,
@@ -1160,7 +1205,6 @@ pub enum Message {
     DoubleClick(Option<usize>),
     ClickRelease(Option<usize>),
     CursorMoved(Point),
-    MouseAreaResized(Size, Rectangle),
     DragEnd(Option<usize>),
     Config(TabConfig),
     ContextAction(Action),
@@ -1493,7 +1537,7 @@ impl Item {
                 widget::image(handle.clone()).into()
             }
             ItemThumbnail::Svg(handle) => widget::svg(handle.clone()).into(),
-            ItemThumbnail::Text(content) => widget::text_editor(content)
+            ItemThumbnail::Text(content) => widget::text_editor(&content)
                 .class(cosmic::theme::iced::TextEditor::Custom(Box::new(
                     text_editor_class,
                 )))
@@ -1560,15 +1604,18 @@ impl Item {
             if !mime_apps.is_empty() {
                 settings.push(
                     widget::settings::item::builder(fl!("open-with")).control(
-                        widget::dropdown(
-                            mime_apps,
-                            mime_apps.iter().position(|x| x.is_default),
-                            |index| {
-                                let mime_app = &mime_apps[index];
-                                Message::SetOpenWith(self.mime.clone(), mime_app.id.clone())
-                            },
+                        Element::from(
+                            widget::dropdown(
+                                mime_apps,
+                                mime_apps.iter().position(|x| x.is_default),
+                                move |index| index,
+                            )
+                            .icons(mime_app_cache.icons(&self.mime)),
                         )
-                        .icons(mime_app_cache.icons(&self.mime)),
+                        .map(|index| {
+                            let mime_app = &mime_apps[index];
+                            Message::SetOpenWith(self.mime.clone(), mime_app.id.clone())
+                        }),
                     ),
                 );
             }
@@ -1591,24 +1638,30 @@ impl Item {
                     )));
                 }
 
+                let date_time_formatter = date_time_formatter(military_time);
+                let time_formatter = time_formatter(military_time);
+
                 if let Ok(time) = metadata.created() {
                     details = details.push(widget::text::body(fl!(
                         "item-created",
-                        created = format_time(time, military_time).to_string()
+                        created =
+                            format_time(time, &date_time_formatter, &time_formatter).to_string()
                     )));
                 }
 
                 if let Ok(time) = metadata.modified() {
                     details = details.push(widget::text::body(fl!(
                         "item-modified",
-                        modified = format_time(time, military_time).to_string()
+                        modified =
+                            format_time(time, &date_time_formatter, &time_formatter).to_string()
                     )));
                 }
 
                 if let Ok(time) = metadata.accessed() {
                     details = details.push(widget::text::body(fl!(
                         "item-accessed",
-                        accessed = format_time(time, military_time).to_string()
+                        accessed =
+                            format_time(time, &date_time_formatter, &time_formatter).to_string()
                     )));
                 }
 
@@ -1701,9 +1754,12 @@ impl Item {
                     )));
                 }
                 if let Ok(time) = metadata.modified() {
+                    let date_time_formatter = date_time_formatter(military_time);
+                    let time_formatter = time_formatter(military_time);
+
                     column = column.push(widget::text::body(format!(
                         "Last modified: {}",
-                        format_time(time, military_time)
+                        format_time(time, &date_time_formatter, &time_formatter)
                     )));
                 }
             }
@@ -1821,16 +1877,19 @@ pub struct Tab {
     search_context: Option<SearchContext>,
     global_cursor_position: Option<Point>,
     current_drag_rect: Option<Rectangle>,
-    viewport_rect: Option<Rectangle>,
     virtual_cursor_offset: Option<Point>,
     last_scroll_position: Option<Point>,
     last_scroll_offset: Option<Point>,
+    scroll_bounds_opt: Option<Rectangle>,
+    date_time_formatter: DateTimeFormatter,
+    time_formatter: DateTimeFormatter,
 }
 
-fn calculate_dir_size(path: &Path, controller: Controller) -> Result<u64, String> {
+async fn calculate_dir_size(path: &Path, controller: Controller) -> Result<u64, String> {
     let mut total = 0;
     for entry_res in WalkDir::new(path) {
-        controller.check()?;
+        controller.check().await?;
+
         //TODO: report more errors?
         if let Ok(entry) = entry_res {
             if let Ok(metadata) = entry.metadata() {
@@ -1839,6 +1898,9 @@ fn calculate_dir_size(path: &Path, controller: Controller) -> Result<u64, String
                 }
             }
         }
+
+        // Yield in case this process takes a while.
+        tokio::task::yield_now().await;
     }
     Ok(total)
 }
@@ -1911,10 +1973,12 @@ impl Tab {
             search_context: None,
             global_cursor_position: None,
             current_drag_rect: None,
-            viewport_rect: None,
             virtual_cursor_offset: None,
             last_scroll_position: None,
             last_scroll_offset: None,
+            scroll_bounds_opt: None,
+            date_time_formatter: date_time_formatter(config.military_time),
+            time_formatter: time_formatter(config.military_time),
         }
     }
 
@@ -2214,6 +2278,7 @@ impl Tab {
         self.items_opt = None;
         //TODO: remember scroll by location?
         self.scroll_opt = None;
+        self.scroll_bounds_opt = None;
         self.select_focus = None;
         self.search_context = None;
         if let Some(history_i) = history_i_opt {
@@ -2278,21 +2343,23 @@ impl Tab {
 
                 // we're currently dragging
                 if self.current_drag_rect.is_some() {
-                    if let Some(viewport) = self.viewport_rect {
-                        if !viewport.contains(pos) {
-                            if pos.y < viewport.y || pos.y > (viewport.y + viewport.height) {
-                                // if our mouse is above the scrollable viewport, we want to scroll up
+                    if let Some(scroll_bounds) = self.scroll_bounds_opt {
+                        if !scroll_bounds.contains(pos) {
+                            if pos.y < scroll_bounds.y
+                                || pos.y > (scroll_bounds.y + scroll_bounds.height)
+                            {
+                                // if our mouse is above the scroll bounds, we want to scroll up
                                 let drag_start_point = Point {
-                                    x: viewport.x,
-                                    y: viewport.y,
+                                    x: scroll_bounds.x,
+                                    y: scroll_bounds.y,
                                 };
                                 // diff_y should be NEGATIVE here when close to y=0 (above the MouseArea)
-                                // and positive when below the viewport
+                                // and positive when below the scroll bounds
                                 let diff_y = pos.y - drag_start_point.y;
                                 let scroll_y: f32 = if diff_y > 0.0 {
                                     DRAG_SCROLL_DISTANCE
                                 } else if diff_y < 0.0 {
-                                    DRAG_SCROLL_DISTANCE * -1.0
+                                    -DRAG_SCROLL_DISTANCE
                                 } else {
                                     0.0
                                 };
@@ -2331,20 +2398,6 @@ impl Tab {
                     }
                 }
             }
-            Message::MouseAreaResized(_size, viewport) => {
-                // if we have a scroll position, we want to subtract it from the viewport
-                // so that we don't desync when swapping
-                if let Some(scroll_pos) = self.scroll_opt {
-                    self.viewport_rect = Some(Rectangle {
-                        x: viewport.x - scroll_pos.x,
-                        y: viewport.y - scroll_pos.y,
-                        width: viewport.width,
-                        height: viewport.height,
-                    });
-                } else {
-                    self.viewport_rect = Some(viewport);
-                }
-            }
             Message::DragEnd(_) => {
                 self.clicked = None;
                 self.virtual_cursor_offset = None;
@@ -2370,7 +2423,7 @@ impl Tab {
                         if clicked_item.metadata.is_dir() {
                             cd = Some(location.clone());
                         } else if let Some(path) = location.path_opt() {
-                            commands.push(Command::OpenFile(path.to_path_buf()));
+                            commands.push(Command::OpenFile(vec![path.to_path_buf()]));
                         } else {
                             log::warn!("no path for item {:?}", clicked_item);
                         }
@@ -2476,8 +2529,24 @@ impl Tab {
                                 .any(|(e_i, e)| Some(e_i) == click_i_opt.as_ref() && e.selected)
                         });
                     if let Some(ref mut items) = self.items_opt {
+                        let mut paths_to_open = vec![];
                         for (i, item) in items.iter_mut().enumerate() {
                             if Some(i) == click_i_opt {
+                                // Single click to open.
+                                if !mod_ctrl && self.config.single_click {
+                                    if let Some(location) = &item.location_opt {
+                                        if item.metadata.is_dir() {
+                                            cd = Some(location.clone());
+                                        } else if let Some(path) = location.path_opt() {
+                                            paths_to_open.push(path.to_path_buf());
+                                        } else {
+                                            log::warn!("no path for item {:?}", item);
+                                        }
+                                    } else {
+                                        log::warn!("no location for item {:?}", item);
+                                    }
+                                }
+
                                 // Filter out selection if it does not match dialog kind
                                 if let Mode::Dialog(dialog) = &self.mode {
                                     let item_is_dir = item.metadata.is_dir();
@@ -2502,6 +2571,9 @@ impl Tab {
                                 item.selected = false;
                             }
                         }
+                        if !paths_to_open.is_empty() {
+                            commands.push(Command::OpenFile(paths_to_open));
+                        }
                     }
                 }
             }
@@ -2509,9 +2581,14 @@ impl Tab {
                 // View is preserved for existing tabs
                 let view = self.config.view;
                 let show_hidden = self.config.show_hidden;
+                let military_time_changed = self.config.military_time != config.military_time;
                 self.config = config;
                 self.config.view = view;
                 self.config.show_hidden = show_hidden;
+                if military_time_changed {
+                    self.date_time_formatter = date_time_formatter(self.config.military_time);
+                    self.time_formatter = time_formatter(self.config.military_time);
+                }
             }
             Message::ContextAction(action) => {
                 // Close context menu
@@ -2586,11 +2663,15 @@ impl Tab {
                 }
             }
             Message::Drag(rect_opt) => {
-                self.current_drag_rect = rect_opt;
+                if self.mode.multiple() {
+                    self.current_drag_rect = rect_opt;
+                }
                 if let Some(rect) = rect_opt {
                     self.context_menu = None;
                     self.location_context_menu_index = None;
-                    self.select_rect(rect, mod_ctrl, mod_shift);
+                    if self.mode.multiple() {
+                        self.select_rect(rect, mod_ctrl, mod_shift);
+                    }
                     if self.select_focus.take().is_some() {
                         // Unfocus currently focused button
                         commands.push(Command::Iced(
@@ -2640,10 +2721,10 @@ impl Tab {
                         items.iter().find(|item| item.selected).and_then(|item| {
                             let location = item.location_opt.as_ref()?;
                             let path = location.path_opt()?;
-                            cosmic::desktop::load_desktop_file(Some(language), path)
+                            cosmic::desktop::load_desktop_file(&[language.into()], path.into())
                         })
                     },
-                    |path| cosmic::desktop::load_desktop_file(Some(language), path),
+                    |path| cosmic::desktop::load_desktop_file(&[language.into()], path),
                 ) {
                     Some(entry) => commands.push(Command::ExecEntryAction(entry, action)),
                     None => log::warn!("Invalid desktop entry path passed to ExecEntryAction"),
@@ -2887,7 +2968,7 @@ impl Tab {
                         if path.is_dir() {
                             cd = Some(location);
                         } else {
-                            commands.push(Command::OpenFile(path.clone()));
+                            commands.push(Command::OpenFile(vec![path.clone()]));
                         }
                     }
                     _ => {
@@ -2910,11 +2991,12 @@ impl Tab {
                         if path.is_dir() {
                             cd = Some(Location::Path(path));
                         } else {
-                            commands.push(Command::OpenFile(path));
+                            commands.push(Command::OpenFile(vec![path]));
                         }
                     }
                     None => {
                         if let Some(ref mut items) = self.items_opt {
+                            let mut open_files = Vec::new();
                             for item in items.iter() {
                                 if item.selected {
                                     if let Some(location) = &item.location_opt {
@@ -2922,19 +3004,23 @@ impl Tab {
                                             //TODO: allow opening multiple tabs?
                                             cd = Some(location.clone());
                                         } else if let Some(path) = location.path_opt() {
-                                            commands.push(Command::OpenFile(path.to_path_buf()));
+                                            open_files.push(path.to_path_buf());
                                         }
                                     } else {
                                         //TODO: open properties?
                                     }
                                 }
                             }
+
+                            commands.push(Command::OpenFile(open_files));
                         }
                     }
                 }
             }
             Message::RightClick(click_i_opt) => {
-                self.update(Message::Click(click_i_opt), modifiers);
+                if mod_ctrl || mod_shift {
+                    self.update(Message::Click(click_i_opt), modifiers);
+                }
                 if let Some(ref mut items) = self.items_opt {
                     if !click_i_opt.map_or(false, |click_i| {
                         items.get(click_i).map_or(false, |x| x.selected)
@@ -2949,8 +3035,9 @@ impl Tab {
                 self.last_right_click = click_i_opt;
             }
             Message::MiddleClick(click_i) => {
-                self.update(Message::Click(Some(click_i)), modifiers);
-                if !mod_ctrl && !mod_shift {
+                if mod_ctrl || mod_shift {
+                    self.update(Message::Click(Some(click_i)), modifiers);
+                } else {
                     if let Some(ref mut items) = self.items_opt {
                         for (i, item) in items.iter_mut().enumerate() {
                             item.selected = i == click_i;
@@ -2965,7 +3052,7 @@ impl Tab {
                                 //cd = Some(Location::Path(path.clone()));
                                 commands.push(Command::OpenInNewTab(path.clone()))
                             } else {
-                                commands.push(Command::OpenFile(path.clone()));
+                                commands.push(Command::OpenFile(vec![path.clone()]));
                             }
                         } else {
                             log::warn!("no path for item {:?}", clicked_item);
@@ -2987,6 +3074,7 @@ impl Tab {
             }
 
             Message::Scroll(viewport) => {
+                self.scroll_bounds_opt = Some(viewport.bounds());
                 self.scroll_opt = Some(viewport.absolute_offset());
             }
             Message::ScrollTab(scroll_speed) => {
@@ -3296,7 +3384,7 @@ impl Tab {
             if matches!(self.mode, Mode::Desktop) {
                 match location {
                     Location::Path(path) => {
-                        commands.push(Command::OpenFile(path));
+                        commands.push(Command::OpenFile(vec![path]));
                     }
                     Location::Trash => {
                         commands.push(Command::OpenTrash);
@@ -3545,7 +3633,7 @@ impl Tab {
                         ItemThumbnail::Text(text) => {
                             element_opt = Some(
                                 widget::container(
-                                    widget::text_editor(text).padding(space_xxs).class(
+                                    widget::text_editor(&text).padding(space_xxs).class(
                                         cosmic::theme::iced::TextEditor::Custom(Box::new(
                                             text_editor_class,
                                         )),
@@ -3771,7 +3859,7 @@ impl Tab {
                                 location.with_path(PathBuf::from(input)).into(),
                             ))
                         })
-                        .on_submit(Message::EditLocationSubmit)
+                        .on_submit(|_| Message::EditLocationSubmit)
                         .line_height(1.0);
                     let mut popover =
                         widget::popover(text_input).position(widget::popover::Position::Bottom);
@@ -4294,10 +4382,8 @@ impl Tab {
                 .on_press(|_| Message::Click(None))
                 .on_drag(Message::Drag)
                 .on_drag_end(|_| Message::DragEnd(None))
-                .show_drag_rect(true)
+                .show_drag_rect(self.mode.multiple())
                 .on_release(|_| Message::ClickRelease(None))
-                .on_resize(Message::MouseAreaResized)
-                .cursor_offset(self.virtual_cursor_offset)
                 .into(),
             true,
         )
@@ -4363,17 +4449,18 @@ impl Tab {
                     y += 1;
                 }
 
-                let military_time = self.config.military_time;
                 let modified_text = match &item.metadata {
                     ItemMetadata::Path { metadata, .. } => match metadata.modified() {
-                        Ok(time) => format_time(time, military_time).to_string(),
+                        Ok(time) => self.format_time(time).to_string(),
                         Err(_) => String::new(),
                     },
-                    ItemMetadata::Trash { entry, .. } => {
-                        FormatTime::from_secs(entry.time_deleted, military_time)
-                            .map(|t| t.to_string())
-                            .unwrap_or_default()
-                    }
+                    ItemMetadata::Trash { entry, .. } => FormatTime::from_secs(
+                        entry.time_deleted,
+                        &self.date_time_formatter,
+                        &self.time_formatter,
+                    )
+                    .map(|t| t.to_string())
+                    .unwrap_or_default(),
                     _ => String::new(),
                 };
 
@@ -4629,10 +4716,8 @@ impl Tab {
             .on_press(|_| Message::Click(None))
             .on_drag(Message::Drag)
             .on_drag_end(|_| Message::DragEnd(None))
-            .show_drag_rect(true)
+            .show_drag_rect(self.mode.multiple())
             .on_release(|_| Message::ClickRelease(None))
-            .on_resize(Message::MouseAreaResized)
-            .cursor_offset(self.virtual_cursor_offset)
             .into(),
             true,
         )
@@ -4901,36 +4986,31 @@ impl Tab {
                                 ("dir_size", path.clone()),
                                 stream::channel(1, |mut output| async move {
                                     let message = {
-                                        let path = path.clone();
-                                        tokio::task::spawn_blocking(move || {
-                                            let start = Instant::now();
-                                            match calculate_dir_size(&path, controller) {
-                                                Ok(size) => {
-                                                    log::debug!(
-                                                        "calculated directory size of {:?} in {:?}",
-                                                        path,
-                                                        start.elapsed()
-                                                    );
-                                                    Message::DirectorySize(
-                                                        path.clone(),
-                                                        DirSize::Directory(size),
-                                                    )
-                                                }
-                                                Err(err) => {
-                                                    log::warn!(
+                                        let start = Instant::now();
+                                        match calculate_dir_size(&path, controller).await {
+                                            Ok(size) => {
+                                                log::debug!(
+                                                    "calculated directory size of {:?} in {:?}",
+                                                    path,
+                                                    start.elapsed()
+                                                );
+                                                Message::DirectorySize(
+                                                    path.clone(),
+                                                    DirSize::Directory(size),
+                                                )
+                                            }
+                                            Err(err) => {
+                                                log::warn!(
                                                 "failed to calculate directory size of {:?}: {}",
                                                 path,
                                                 err
                                             );
-                                                    Message::DirectorySize(
-                                                        path.clone(),
-                                                        DirSize::Error(err),
-                                                    )
-                                                }
+                                                Message::DirectorySize(
+                                                    path.clone(),
+                                                    DirSize::Error(err),
+                                                )
                                             }
-                                        })
-                                        .await
-                                        .unwrap()
+                                        }
                                     };
 
                                     match output.send(message).await {
@@ -5085,6 +5165,10 @@ impl Tab {
         }
 
         Subscription::batch(subscriptions)
+    }
+
+    fn format_time<'a>(&'a self, time: SystemTime) -> FormatTime<'a> {
+        format_time(time, &self.date_time_formatter, &self.time_formatter)
     }
 }
 
