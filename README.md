@@ -1,4 +1,5 @@
 # cosmic-files
+
 File manager for the COSMIC desktop environment
 
 > [!NOTE]
@@ -15,6 +16,9 @@ cd cosmic-files
 cargo build --release
 # Run the optimized version using `cargo`
 cargo run --release
+# To install it into your system run the following
+# This does not backup the exisiting version of cosmic-files and should be considered destructive
+sudo cp -f target/release/cosmic-files /usr/bin/cosmic-files
 ```
 
 ## Community and Contributing
